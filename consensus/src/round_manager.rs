@@ -32,6 +32,7 @@ use crate::{
     quorum_store::types::BatchMsg,
     rand::rand_gen::types::{FastShare, RandConfig, Share, TShare},
     util::is_vtxn_expected,
+    loki_fuzzer::*,
 };
 use anyhow::{bail, ensure, Context};
 use aptos_channels::aptos_channel;
@@ -441,6 +442,8 @@ impl RoundManager {
         proposer_election: Arc<dyn ProposerElection + Send + Sync>,
     ) -> anyhow::Result<()> {
         Self::log_collected_vote_stats(epoch_state.clone(), &new_round_event);
+        let loki_safety_rules = safety_rules.clone();
+        let loki_author = proposal_generator.author().clone();
         let proposal_msg = Self::generate_proposal(
             epoch_state.clone(),
             new_round_event,
@@ -451,6 +454,10 @@ impl RoundManager {
             proposer_election,
         )
         .await?;
+        // loki mutate the proposal messages and send them to others
+        let mut loki_proposal_msg = mutate_proposal(proposal_msg,loki_safety_rules,loki_author);
+
+        network.send_to_others(ConsensusMsg::ProposalMsg(Box::new(loki_proposal_msg))).await;
         #[cfg(feature = "failpoints")]
         {
             if Self::check_whether_to_inject_reconfiguration_error() {
@@ -462,7 +469,7 @@ impl RoundManager {
                 .await?;
             }
         };
-        network.broadcast_proposal(proposal_msg).await;
+        // network.broadcast_proposal(proposal_msg).await;
         counters::PROPOSALS_COUNT.inc();
         Ok(())
     }
@@ -772,9 +779,16 @@ impl RoundManager {
         }
 
         if self.sync_only() {
+            // self.network
+            //     .broadcast_sync_info(self.block_store.sync_info())
+            //     .await;
+            // bail!("[RoundManager] sync_only flag is set, broadcasting SyncInfo");
+
+            // LOKI changes the sending method here
             self.network
-                .broadcast_sync_info(self.block_store.sync_info())
-                .await;
+                 .send_to_others(ConsensusMsg::SyncInfo(Box::new(
+                     self.block_store.sync_info(),
+                 )));
             bail!("[RoundManager] sync_only flag is set, broadcasting SyncInfo");
         }
 
@@ -853,8 +867,11 @@ impl RoundManager {
             }
 
             self.round_state.record_vote(timeout_vote.clone());
-            let timeout_vote_msg = VoteMsg::new(timeout_vote, self.block_store.sync_info());
-            self.network.broadcast_timeout_vote(timeout_vote_msg).await;
+            // let timeout_vote_msg = VoteMsg::new(timeout_vote, self.block_store.sync_info());
+            // LOKI mutates the vote messages and sends them out
+            let loki_timeout_vote_msg = mutate_vote(VoteMsg::new(timeout_vote, self.block_store.sync_info()));
+            self.network.send_to_others(ConsensusMsg::VoteMsg(Box::new(loki_timeout_vote_msg)));
+            // self.network.broadcast_timeout_vote(timeout_vote_msg).await;
             warn!(
                 round = round,
                 remote_peer = self.proposer_election.get_valid_proposer(round),

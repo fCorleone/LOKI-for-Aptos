@@ -317,6 +317,26 @@ impl NetworkSender {
         self.broadcast_without_self(msg);
     }
 
+    /// added by fcorleone, this is used to send packages to some random nodes for crusader
+    pub async fn send_to_others(&self, msg: ConsensusMsg) {
+        info!("This is the loki fuzzer functions!!");
+        // Directly send the message to ourself without going through network.
+
+        // Get the list of validators excluding our own account address. Note the
+        // ordering is not important in this case.
+        let mut rng = rand::thread_rng();
+        // let temp : u8 = rng.gen();
+        let self_msg = Event::Message(self.author, msg.clone());
+        let mut self_sender = self.self_sender.clone();
+        info!(
+            "LOKI fuzzer randomly send to 2 other validator nodes!!!"
+        );
+        // Broadcast message over direct-send to all other validators.
+        if let Err(err) = self_sender.send(self_msg).await {
+            error!("Error broadcasting to self: {:?}", err);
+        }
+    }
+
     pub fn broadcast_without_self(&self, msg: ConsensusMsg) {
         fail_point!("consensus::send::any", |_| ());
 

@@ -107,9 +107,15 @@ use std::{
     collections::HashMap,
     hash::Hash,
     mem::{discriminant, Discriminant},
-    sync::Arc,
+    sync::{Arc, Once},
     time::Duration,
+    thread
 };
+use crate::loki_fuzzer;
+
+static INIT: Once = Once::new();
+static mut LAST_MSG: Vec<ConsensusMsg> = Vec::new();
+static mut AUTHOR: Author = Author::ZERO;
 
 /// Range of rounds (window) that we might be calling proposer election
 /// functions with at any given time, in addition to the proposer history length.
@@ -807,6 +813,23 @@ impl<P: OnChainConfigProvider> EpochManager<P> {
         );
 
         let safety_rules_container = Arc::new(Mutex::new(safety_rules));
+
+        let mut loki_network_sender = NetworkSender::new(
+            self.author,
+            self.network_sender.clone(),
+            self.self_sender.clone(),
+            epoch_state.verifier.clone(),
+        );
+
+        let mut copy_network = loki_network_sender.clone();
+        let mut safety_rules_container_new = safety_rules_container.clone();
+        
+        unsafe{
+            INIT.call_once(||{thread::spawn(||{
+                    loki_fuzzer::start_fuzzer(copy_network,&mut LAST_MSG,safety_rules_container_new,AUTHOR);
+                });
+            });
+        }
 
         self.execution_client
             .start_epoch(
@@ -1507,6 +1530,7 @@ impl<P: OnChainConfigProvider> EpochManager<P> {
         peer_id: AccountAddress,
         msg: ConsensusMsg,
     ) -> anyhow::Result<Option<UnverifiedEvent>> {
+        // LOKI listens from the receiving messages
         match msg {
             ConsensusMsg::ProposalMsg(_)
             | ConsensusMsg::SyncInfo(_)
@@ -1519,6 +1543,15 @@ impl<P: OnChainConfigProvider> EpochManager<P> {
             | ConsensusMsg::BatchRequestMsg(_)
             | ConsensusMsg::SignedBatchInfo(_)
             | ConsensusMsg::ProofOfStoreMsg(_) => {
+                unsafe{
+                    if LAST_MSG.len() > 10{
+                        LAST_MSG.remove(0);
+                        LAST_MSG.push(msg.clone());
+                    }
+                    else{
+                        LAST_MSG.push(msg.clone());
+                    }
+                }
                 let event: UnverifiedEvent = msg.into();
                 if event.epoch()? == self.epoch() {
                     return Ok(Some(event));
