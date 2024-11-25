@@ -455,20 +455,20 @@ impl RoundManager {
         )
         .await?;
         // loki mutate the proposal messages and send them to others
-        let mut loki_proposal_msg = mutate_proposal(proposal_msg,loki_safety_rules,loki_author);
+        let mut loki_proposal_msg = mutate_proposal(proposal_msg.clone(),loki_safety_rules,loki_author);
 
         network.send_to_others(ConsensusMsg::ProposalMsg(Box::new(loki_proposal_msg))).await;
-        #[cfg(feature = "failpoints")]
-        {
-            if Self::check_whether_to_inject_reconfiguration_error() {
-                Self::attempt_to_inject_reconfiguration_error(
-                    epoch_state,
-                    network.clone(),
-                    &proposal_msg,
-                )
-                .await?;
-            }
-        };
+        // #[cfg(feature = "failpoints")]
+        // {
+        //     if Self::check_whether_to_inject_reconfiguration_error() {
+        //         Self::attempt_to_inject_reconfiguration_error(
+        //             epoch_state,
+        //             network.clone(),
+        //             &(proposal_msg.clone()),
+        //         )
+        //         .await?;
+        //     }
+        // };
         // network.broadcast_proposal(proposal_msg).await;
         counters::PROPOSALS_COUNT.inc();
         Ok(())

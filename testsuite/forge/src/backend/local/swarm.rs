@@ -93,6 +93,7 @@ pub struct LocalSwarm {
     genesis_waypoint: Waypoint,
     versions: Arc<HashMap<Version, LocalVersion>>,
     validators: HashMap<PeerId, LocalNode>,
+    lokinodes: usize,
     fullnodes: HashMap<PeerId, LocalNode>,
     public_networks: HashMap<PeerId, NetworkConfig>,
     dir: SwarmDirectory,
@@ -109,6 +110,7 @@ impl LocalSwarm {
     pub fn build<R>(
         rng: R,
         number_of_validators: NonZeroUsize,
+        number_of_loki: usize,
         versions: Arc<HashMap<Version, LocalVersion>>,
         initial_version: Option<Version>,
         init_config: Option<InitConfigFn>,
@@ -139,6 +141,7 @@ impl LocalSwarm {
                     .unwrap_or_else(|| aptos_cached_packages::head_release_bundle().clone()),
             )?
             .with_num_validators(number_of_validators)
+            .with_num_loki(number_of_loki)
             .with_init_config(Some(Arc::new(move |index, config, base| {
                 // for local tests, turn off parallel execution:
                 config.execution.concurrency_level = 1;
@@ -253,6 +256,7 @@ impl LocalSwarm {
             genesis_waypoint,
             versions,
             validators,
+            lokinodes: number_of_loki,
             fullnodes: HashMap::new(),
             public_networks,
             dir: dir_actual,
@@ -271,8 +275,15 @@ impl LocalSwarm {
         self.launched = true;
 
         // Start all the validators
-        for validator in self.validators.values_mut() {
-            validator.start()?;
+        // The cluster contains N validators with M of them are loki nodes
+        for (index, validator) in self.validators.values_mut().enumerate() {
+            // self.num_loki
+            if index < self.lokinodes{
+                validator.start_loki()?;
+            }
+            else{
+                validator.start()?;
+            }
         }
 
         self.wait_all_alive(Duration::from_secs(60)).await?;

@@ -49,6 +49,8 @@ struct Args {
     #[clap(long)]
     num_validators: Option<usize>,
     #[clap(long)]
+    num_loki_validator: Option<usize>,
+    #[clap(long)]
     num_validator_fullnodes: Option<usize>,
     #[clap(
         long,
@@ -178,6 +180,8 @@ struct Create {
     namespace: String,
     #[clap(long, default_value_t = 30)]
     num_validators: usize,
+    #[clap(long, default_value_t = 0)]
+    num_loki: usize,
     #[clap(long, default_value_t = 1)]
     num_fullnodes: usize,
     #[clap(
@@ -262,7 +266,22 @@ fn main() -> Result<()> {
                         ));
                     }
                 }
+
+                // Verify the number of loki nodes is less than the validators
+                if let Some(num_loki_validator) = args.num_loki_validator {
+                    if num_loki_validator > num_validators {
+                        return Err(format_err!(
+                            "Cannot have more loki nodes than validators! Loki nodes: {:?}, validators: {:?}.",
+                            num_loki_validator, num_validators
+                        ));
+                    }
+                }
             }
+
+            if let Some(num_loki_validator) = args.num_loki_validator {
+                test_suite = test_suite.with_loki_validator_count(num_loki_validator)
+            }
+
             if let Some(num_validator_fullnodes) = args.num_validator_fullnodes {
                 test_suite = test_suite.with_initial_fullnode_count(num_validator_fullnodes)
             }
@@ -283,6 +302,7 @@ fn main() -> Result<()> {
                         test_suite,
                         duration,
                         LocalFactory::from_workspace(swarm_dir)?,
+                        // LocalFactory::with_upstream_and_workspace()?
                     );
                     run_forge_with_changelog(forge, &args.options, args.changelog.clone())
                 },
@@ -373,6 +393,7 @@ fn main() -> Result<()> {
                         era.clone(),
                         create.namespace.clone(),
                         create.num_validators,
+                        create.num_loki,
                         create.num_fullnodes,
                         create.validator_image_tag,
                         create.testnet_image_tag,

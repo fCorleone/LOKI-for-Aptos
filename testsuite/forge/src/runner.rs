@@ -281,6 +281,7 @@ impl<'cfg, F: Factory> Forge<'cfg, F> {
             let mut swarm = runtime.block_on(self.factory.launch_swarm(
                 &mut rng,
                 self.tests.initial_validator_count,
+                self.tests.loki_validator_count,
                 self.tests.initial_fullnode_count,
                 &initial_version,
                 &genesis_version,

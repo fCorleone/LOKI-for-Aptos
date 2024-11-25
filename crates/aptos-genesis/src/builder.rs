@@ -453,6 +453,7 @@ pub struct Builder {
     config_dir: PathBuf,
     framework: ReleaseBundle,
     num_validators: NonZeroUsize,
+    num_loki: usize,
     randomize_first_validator_ports: bool,
     init_config: Option<InitConfigFn>,
     init_genesis_stake: Option<InitGenesisStakeFn>,
@@ -468,6 +469,7 @@ impl Builder {
             config_dir,
             framework,
             num_validators: NonZeroUsize::new(1).unwrap(),
+            num_loki: 0,
             randomize_first_validator_ports: true,
             init_config: None,
             init_genesis_stake: None,
@@ -482,6 +484,11 @@ impl Builder {
 
     pub fn with_num_validators(mut self, num_validators: NonZeroUsize) -> Self {
         self.num_validators = num_validators;
+        self
+    }
+
+    pub fn with_num_loki(mut self, num_loki: usize) -> Self{
+        self.num_loki = num_loki;
         self
     }
 

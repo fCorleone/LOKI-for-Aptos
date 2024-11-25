@@ -562,6 +562,7 @@ pub async fn install_testnet_resources(
     new_era: String,
     kube_namespace: String,
     num_validators: usize,
+    num_loki: usize,
     num_fullnodes: usize,
     node_image_tag: String,
     genesis_image_tag: String,

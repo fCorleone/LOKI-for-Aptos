@@ -16,6 +16,7 @@ pub trait Factory {
         &self,
         rng: &mut StdRng,
         num_validators: NonZeroUsize,
+        num_loki: usize,
         num_fullnodes: usize,
         version: &Version,
         genesis_version: &Version,

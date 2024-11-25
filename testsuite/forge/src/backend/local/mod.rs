@@ -117,6 +117,7 @@ impl LocalFactory {
         &self,
         rng: R,
         number_of_validators: NonZeroUsize,
+        number_of_loki: usize,
         number_of_fullnodes: usize,
         version: &Version,
         genesis_framework: Option<ReleaseBundle>,
@@ -134,6 +135,7 @@ impl LocalFactory {
         let mut swarm = LocalSwarm::build(
             rng,
             number_of_validators,
+            number_of_loki,
             self.versions.clone(),
             Some(version.clone()),
             init_config,
@@ -176,6 +178,7 @@ impl Factory for LocalFactory {
         &self,
         rng: &mut StdRng,
         num_validators: NonZeroUsize,
+        num_loki:usize,
         num_fullnodes: usize,
         version: &Version,
         _genesis_version: &Version,
@@ -202,6 +205,7 @@ impl Factory for LocalFactory {
             .new_swarm_with_version(
                 rng,
                 num_validators,
+                num_loki,
                 num_fullnodes,
                 version,
                 framework,

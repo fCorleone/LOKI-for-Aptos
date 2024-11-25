@@ -21,7 +21,7 @@ use aptos_state_sync_driver::metadata_storage::STATE_SYNC_DB_NAME;
 use std::{
     env,
     fs::{self, OpenOptions},
-    path::PathBuf,
+    path::{Path,PathBuf},
     process::{Child, Command},
     str::FromStr,
 };
@@ -144,6 +144,73 @@ impl LocalNode {
             format!(
                 "Error launching node process with binary: {:?}",
                 self.version.bin()
+            )
+        })?;
+
+        // We print out the commands and PIDs for debugging of local swarms
+        info!(
+            "Started node {} (PID: {}) with command: {:?}, log_path: {:?}",
+            self.name,
+            process.id(),
+            node_command,
+            self.log_path(),
+        );
+
+        // We print out the API endpoints of each node for local debugging
+        info!(
+            "Node {}: REST API is listening at: http://127.0.0.1:{}",
+            self.name,
+            self.config.api.address.port()
+        );
+        info!(
+            "Node {}: Inspection service is listening at http://127.0.0.1:{}",
+            self.name, self.config.inspection_service.port
+        );
+        info!(
+            "Node {}: Admin service is listening at http://127.0.0.1:{}",
+            self.name, self.config.admin_service.port
+        );
+        info!(
+            "Node {}: Backup service is listening at http://127.0.0.1:{}",
+            self.name,
+            self.config.storage.backup_service_address.port()
+        );
+
+        *process_locker = Some(Process(process));
+
+        Ok(())
+    }
+
+    pub fn start_loki(&self) -> Result<()> {
+        let mut process_locker = self.process.lock().unwrap();
+        ensure!(
+            process_locker.is_none(),
+            "node {} already running",
+            self.name
+        );
+
+        // Ensure log file exists
+        let log_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.log_path())?;
+
+        // Start loki node process, the binanry name of loki is aptos-node-loki
+        let loki_path = format!("{}-loki", self.version.bin().display());
+        let mut node_command = Command::new( PathBuf::from(loki_path.clone()).as_path());
+        node_command
+            .current_dir(&self.directory)
+            .arg("-f")
+            .arg(self.config_path());
+        if env::var("RUST_LOG").is_err() {
+            // Only set our RUST_LOG if its not present in environment
+            node_command.env("RUST_LOG", "debug");
+        }
+        node_command.stdout(log_file.try_clone()?).stderr(log_file);
+        let process = node_command.spawn().with_context(|| {
+            format!(
+                "Error launching loki node process with binary: {:?}",
+                PathBuf::from(loki_path).as_path()
             )
         })?;
 
