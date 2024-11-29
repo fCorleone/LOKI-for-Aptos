@@ -181,7 +181,7 @@ impl LocalNode {
         Ok(())
     }
 
-    pub fn start_loki(&self) -> Result<()> {
+    pub fn start_origin(&self) -> Result<()> {
         let mut process_locker = self.process.lock().unwrap();
         ensure!(
             process_locker.is_none(),
@@ -195,9 +195,9 @@ impl LocalNode {
             .append(true)
             .open(self.log_path())?;
 
-        // Start loki node process, the binanry name of loki is aptos-node-loki
-        let loki_path = format!("{}-loki", self.version.bin().display());
-        let mut node_command = Command::new( PathBuf::from(loki_path.clone()).as_path());
+        // Start origin node process, the binanry name of loki is aptos-node-loki
+        let origin_path = format!("{}-origin", self.version.bin().display());
+        let mut node_command = Command::new( PathBuf::from(origin_path.clone()).as_path());
         node_command
             .current_dir(&self.directory)
             .arg("-f")
@@ -210,7 +210,7 @@ impl LocalNode {
         let process = node_command.spawn().with_context(|| {
             format!(
                 "Error launching loki node process with binary: {:?}",
-                PathBuf::from(loki_path).as_path()
+                PathBuf::from(origin_path).as_path()
             )
         })?;
 

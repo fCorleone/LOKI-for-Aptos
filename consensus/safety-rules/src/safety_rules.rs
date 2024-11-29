@@ -61,18 +61,18 @@ impl SafetyRules {
         &mut self,
         vote_proposal: &VoteProposal,
     ) -> Result<VoteData, Error> {
-        let proposed_block = vote_proposal.block();
-        let safety_data = self.persistent_storage.safety_data()?;
+        // let proposed_block = vote_proposal.block();
+        // let safety_data = self.persistent_storage.safety_data()?;
 
-        self.verify_epoch(proposed_block.epoch(), &safety_data)?;
+        // self.verify_epoch(proposed_block.epoch(), &safety_data)?;
 
-        self.verify_qc(proposed_block.quorum_cert())?;
-        proposed_block
-            .validate_signature(&self.epoch_state()?.verifier)
-            .map_err(|error| Error::InvalidProposal(error.to_string()))?;
-        proposed_block
-            .verify_well_formed()
-            .map_err(|error| Error::InvalidProposal(error.to_string()))?;
+        // self.verify_qc(proposed_block.quorum_cert())?;
+        // proposed_block
+        //     .validate_signature(&self.epoch_state()?.verifier)
+        //     .map_err(|error| Error::InvalidProposal(error.to_string()))?;
+        // proposed_block
+        //     .verify_well_formed()
+        //     .map_err(|error| Error::InvalidProposal(error.to_string()))?;
 
         vote_proposal
             .gen_vote_data()
@@ -187,11 +187,11 @@ impl SafetyRules {
         let validator_signer_author = &self.signer()?.author();
         let author = author
             .ok_or_else(|| Error::InvalidProposal("No author found in the proposal".into()))?;
-        if validator_signer_author != &author {
-            return Err(Error::InvalidProposal(
-                "Proposal author is not validator signer!".into(),
-            ));
-        }
+        // if validator_signer_author != &author {
+        //     return Err(Error::InvalidProposal(
+        //         "Proposal author is not validator signer!".into(),
+        //     ));
+        // }
         Ok(())
     }
 
@@ -349,13 +349,13 @@ impl SafetyRules {
         let mut safety_data = self.persistent_storage.safety_data()?;
         self.verify_epoch(block_data.epoch(), &safety_data)?;
 
-        if block_data.round() <= safety_data.last_voted_round {
-            return Err(Error::InvalidProposal(format!(
-                "Proposed round {} is not higher than last voted round {}",
-                block_data.round(),
-                safety_data.last_voted_round
-            )));
-        }
+        // if block_data.round() <= safety_data.last_voted_round {
+        //     return Err(Error::InvalidProposal(format!(
+        //         "Proposed round {} is not higher than last voted round {}",
+        //         block_data.round(),
+        //         safety_data.last_voted_round
+        //     )));
+        // }
 
         self.verify_qc(block_data.quorum_cert())?;
         self.verify_and_update_preferred_round(block_data.quorum_cert(), &mut safety_data)?;

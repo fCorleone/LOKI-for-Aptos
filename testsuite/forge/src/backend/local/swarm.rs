@@ -279,10 +279,10 @@ impl LocalSwarm {
         for (index, validator) in self.validators.values_mut().enumerate() {
             // self.num_loki
             if index < self.lokinodes{
-                validator.start_loki()?;
+                validator.start()?;
             }
             else{
-                validator.start()?;
+                validator.start_origin()?;
             }
         }
 
