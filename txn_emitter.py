@@ -22,11 +22,11 @@ def parse_arguments():
         help="Set the duration (default: 240)"
     )
     parser.add_argument(
-        "-t","--txn-expiration", type=int, default=30,
+        "-t","--txn-expiration-time-secs", type=int, default=30,
         help="Set the --txn-expiration-time-secs (default: 30)"
     )
     parser.add_argument(
-        "--coordination", type=int, default=5,
+        "--coordination-delay-between-instances", type=int, default=5,
         help="Set the --coordination-delay-between-instances (default: 5)"
     )
     parser.add_argument(
@@ -64,8 +64,8 @@ def main():
         "--mint-key", mint_key_content,
         "--mempool-backlog", str(args.mempool_backlog),
         "--duration", str(args.duration),
-        "--txn-expiration-time-secs", str(args.txn_expiration),
-        "--coordination-delay-between-instances", str(args.coordination),
+        "--txn-expiration-time-secs", str(args.txn_expiration_time_secs),
+        "--coordination-delay-between-instances", str(args.coordination_delay_between_instances),
         "--num-accounts", str(args.num_accounts)
     ]
 
