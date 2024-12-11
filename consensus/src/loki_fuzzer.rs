@@ -20,7 +20,10 @@ use aptos_safety_rules::ConsensusState;
 use aptos_safety_rules::TSafetyRules;
 // use channel::{aptos_channel, message_queues::QueueStyle};
 use aptos_consensus_types::{block_data::BlockData,common::{Author, Round, Payload},block::{Block}, block_retrieval::{BlockRetrievalRequest,BlockRetrievalResponse,BlockRetrievalStatus}, epoch_retrieval::EpochRetrievalRequest, proposal_msg::ProposalMsg, quorum_cert::QuorumCert, sync_info::SyncInfo, vote::Vote, vote_data::VoteData, vote_msg::VoteMsg};
+use aptos_consensus_types::common::ProofWithData;
+use aptos_consensus_types::proof_of_store::ProofOfStore;
 use aptos_types::{
+    transaction::SignedTransaction,
     epoch_change::EpochChangeProof,
     ledger_info::{LedgerInfo, LedgerInfoWithSignatures},
     validator_signer::ValidatorSigner,
@@ -36,7 +39,8 @@ use aptos_network::{
     protocols::network::NewNetworkSender,
 };
 use std::{collections::{BTreeMap,HashMap}};
-use std::{thread, time};
+use std::{thread, time, mem};
+
 
 // static FUZZ_ITERATION: AtomicUsize = AtomicUsize::new(0);
 
@@ -48,14 +52,14 @@ pub fn start_fuzzer(network_ : NetworkSender, LAST_MSG : &mut Vec<ConsensusMsg>,
     let mut network = network_;
     // let mut _time: u32 = 0;
     info!(
-        "Loki fuzzer has started!!!"
+        "LOKI fuzzer has started!!!"
     );
     let mut sy_time = std::time::SystemTime::now();
     // fuzzing loop
     loop{
         if !LAST_MSG.is_empty(){
             info!(
-                "Loki fuzzer sent based on existing packets from {:?} packages!!!",
+                "LOKI fuzzer sent based on existing packets from {:?} packages!!!",
                 LAST_MSG.len()
             );
             // choose a message to mutate
@@ -63,25 +67,25 @@ pub fn start_fuzzer(network_ : NetworkSender, LAST_MSG : &mut Vec<ConsensusMsg>,
             //let chosen_msg = &LAST_MSG[LAST_MSG.len()-1];
             match chosen_msg{
                 ConsensusMsg::ProposalMsg(m) => {
-                    info!("Loki fuzzer has chose the proposalMsg");
+                    info!("LOKI fuzzer has chose the proposalMsg");
                     let proposal = mutate_proposal(*m.clone(),safety_rules.clone(),author);
                     network.send_to_others(ConsensusMsg::ProposalMsg(Box::new(proposal)));
                 }
                 ConsensusMsg::SyncInfo(m) => {
-                    info!("Loki fuzzer has chose the syncinfo");
+                    info!("LOKI fuzzer has chose the syncinfo");
                     network.send_to_others(ConsensusMsg::SyncInfo(m.clone()));
                 }
                 ConsensusMsg::VoteMsg(m) => {
-                    info!("Loki fuzzer has chose the VoteMsg");
+                    info!("LOKI fuzzer has chose the VoteMsg");
                     let vote_msg = mutate_vote(*m.clone());
                     network.send_to_others(ConsensusMsg::VoteMsg(Box::new(vote_msg)));
                 }
                 ConsensusMsg::CommitVoteMsg(m) => {
-                    info!("Loki fuzzer has chose the CommitMsg");
+                    info!("LOKI fuzzer has chose the CommitMsg");
                     network.send_to_others(ConsensusMsg::CommitVoteMsg(m.clone()));
                 }
                 ConsensusMsg::CommitDecisionMsg(m) => {
-                    info!("Loki fuzzer has chose the CommitDecisionMsg");
+                    info!("LOKI fuzzer has chose the CommitDecisionMsg");
                     network.send_to_others(ConsensusMsg::CommitDecisionMsg(m.clone()));
                 } 
                 _ => {
@@ -92,8 +96,11 @@ pub fn start_fuzzer(network_ : NetworkSender, LAST_MSG : &mut Vec<ConsensusMsg>,
                 LAST_MSG.clear();
             }
         }
-        // sleep for 1 second
-        let sleep_time = time::Duration::from_millis(100);
+        // sleep for 0.1 second ---> 100
+        // sleep for 5 second ---> 5000
+        // sleep for 0.5 second ---> 50
+        let sleep_time = time::Duration::from_millis(50);
+        info!("@@@ LOKI Node sleep for 0.5s! @@@");
         thread::sleep(sleep_time);
     }
 }
@@ -115,54 +122,281 @@ fn generate_proposal() -> ProposalMsg{
     proposal
 }
 
-pub fn mutate_proposal(cur_pro: ProposalMsg,safety_rules: Arc<Mutex<MetricsSafetyRules>>,author: Author) -> ProposalMsg{
+pub fn mutate_proposal(
+    cur_pro: ProposalMsg,
+    safety_rules: Arc<Mutex<MetricsSafetyRules>>,
+    author: Author,
+) -> ProposalMsg {
     let mut rng = rand::thread_rng();
-   // let timestamp_usecs: u64 = rng.gen();
+
+    info!(
+        "@@ LOKI: Starting mutation for ProposalMsg with initial timestamp: {:?}, round: {:?}",
+        cur_pro.proposal().timestamp_usecs(),
+        cur_pro.proposal().round()
+    );
+
     let mut timestamp_usecs: u64 = cur_pro.proposal().timestamp_usecs();
-    let temp4: u64 = rng.gen();
-    if temp4 % 4 == 0{
-        timestamp_usecs += temp4 % 10000;
+    let temp_st: u64 = rng.gen();
+
+    match temp_st % 8 {
+        0 => {
+            timestamp_usecs += temp_st % 10000;
+            info!("@@ LOKI: Timestamp += {:?}, new timestamp: {:?}", temp_st % 10000, timestamp_usecs);
+        }
+        1 if timestamp_usecs > 10000 => {
+            timestamp_usecs -= temp_st % 10000;
+            info!("@@ LOKI: Timestamp -= {:?}, new timestamp: {:?}", temp_st % 10000, timestamp_usecs);
+        }
+        2 => {
+            timestamp_usecs += temp_st % 100;
+            info!("@@ LOKI: Timestamp slightly += {:?}, new timestamp: {:?}", temp_st % 100, timestamp_usecs);
+        }
+        3 => {
+            timestamp_usecs = temp_st;
+            info!("@@ LOKI: Timestamp changed to random value: {:?}", timestamp_usecs);
+        }
+        4 => {
+            // timestamp_usecs = 0; //
+            // info!("@@ LOKI: Timestamp set to zero: {:?}", timestamp_usecs);
+            timestamp_usecs -= temp_st % 100;
+            info!("@@ LOKI: Timestamp slightly -= {:?}, new timestamp: {:?}", temp_st % 100, timestamp_usecs);
+        }
+        5 => {
+            // timestamp_usecs = u64::MAX;
+            // info!("@@ LOKI: Timestamp set to max value: {:?}", timestamp_usecs);
+            timestamp_usecs += timestamp_usecs/2;
+            info!("@@ LOKI: Timestamp plus: {:?}", timestamp_usecs);
+        }
+        6 => {
+            timestamp_usecs /= 2; // Halve, simulating time goes backwards
+            info!("@@ LOKI: Timestamp halved: {:?}", timestamp_usecs);
+        }
+        7 => {
+            // skipping
+            info!("@@ LOKI: Timestamp SKIPPING: {:?}", timestamp_usecs);
+        }
+        _ => {}
     }
-    else if temp4 % 4 ==1 && timestamp_usecs > 10000{
-        timestamp_usecs -= temp4 % 10000;
-    }
-    else if temp4 % 4 ==2{
-        timestamp_usecs += temp4 % 100;
-    }
+
     let validator_seed: u8 = rng.gen();
+    info!("@@ LOKI: Generated validator seed: {:?}", validator_seed);
 
     let block = cur_pro.proposal();
     let mut round = block.round();
-    let temp : u64 = rng.gen();
-    if temp % 3 == 0{
-        round += 10; 
-    }
-    else if temp % 3 ==1 && round > 10{
-        round -=10;
-    }    
-    else if temp % 3 == 2{
-        round = temp;
-    }
-    // round = temp;
+    let temp_rd: u64 = rng.gen();
 
-    //let author = block.block_data().author().unwrap();
+    match temp_rd % 6 {
+        0 => {
+            round += 10;
+            info!("@@ LOKI: Round += 10, new round: {:?}", round);
+        }
+        1 if round > 10 => {
+            round -= 10;
+            info!("@@ LOKI: Round -= 10, new round: {:?}", round);
+        }
+        2 => {
+            round = temp_rd; 
+            info!("@@ LOKI: Round completely in Random Value: {:?}", round);
+        }
+        3 => {
+            // round = 0;
+            // info!("@@ LOKI: Round set to zero: {:?}", round);
+            round /= 2;
+            info!("@@ LOKI: Round /= 2, new round: {:?}", round);
+        }
+        4 => {
+            // round = round.saturating_add(100000);
+            // info!("@@ LOKI: Round MAX, new round: {:?}", round);
+            round *= 7;
+            info!("@@ LOKI: Round *= 7, new round: {:?}", round);
+        }
+        5 => {
+            // skipping
+            info!("@@ LOKI: Round SKIPPING: {:?}", round);
+        }
+        _ => {}
+    }
+
     let sync_info = cur_pro.sync_info();
     let payload = block.payload().unwrap();
     let quorum_cert = block.quorum_cert();
-    //let block_data = block.block_data();
-    let block_data = BlockData::new_proposal(payload.clone(), author,Vec::new(),round,timestamp_usecs,quorum_cert.clone());
+
+
+
+    info!("@@ LOKI: Payload origin is: {:?}", payload);
+
+    // mutate payload
+    let mutated_payload = mutate_payload(payload.clone());
+    info!("@@ LOKI: Mutated Payload is: {:?}", mutated_payload);
+
+
+    // The original proposal
+    // let block_data = BlockData::new_proposal(
+    //     payload.clone(),
+    //     author,
+    //     Vec::new(),
+    //     round,
+    //     timestamp_usecs,
+    //     quorum_cert.clone(),
+    // );
+
+    // Use the new proposal information
+    let block_data = BlockData::new_proposal(
+        mutated_payload,
+        author,
+        Vec::new(),
+        round,
+        timestamp_usecs,
+        quorum_cert.clone(),
+    );
+
+    info!(
+        "@@ LOKI: BlockData created with round: {:?}, timestamp: {:?}",
+        round, timestamp_usecs
+    );
+
+    // Sign the proposal data with security rules
     let sig = safety_rules.lock().sign_proposal(&block_data).unwrap();
+    info!("@@ LOKI: Proposal signed with signature: {:?}", sig);
+
+    // Create proposal block with signature
     let signed_proposal =
-            Block::new_proposal_from_block_data_and_signature(block_data, sig);
+        Block::new_proposal_from_block_data_and_signature(block_data, sig);
+    info!(
+        "@@ LOKI: Signed proposal created with new block data: {:?}",
+        signed_proposal
+    );
+
+    // Construct the final ProposalMsg
     let proposal = ProposalMsg::new(
-        //Block::new_proposal_with_sig(payload.clone(), round, timestamp_usecs, author, quorum_cert.clone(),sig.clone()),
+        // Block::new_proposal_with_sig(payload.clone(), round, timestamp_usecs, author, quorum_cert.clone(), sig.clone()),
         signed_proposal,
         sync_info.clone(),
     );
+    info!(
+        "@@ LOKI: Final mutated ProposalMsg created with sync_info: {:?}",
+        sync_info
+    );
+
     proposal
 
     // let ledger_info = cur_pro.ledger_info();
 }
+
+
+fn mutate_payload(mut payload: Payload) -> Payload {
+    match &mut payload {
+        Payload::DirectMempool(txns) => {
+            if txns.is_empty() {
+                return payload;
+            }
+            info!("@@@@@ LOKI: payload MUTATE DirectMempool!");
+
+            let mut rng = rand::thread_rng();
+            // Randomly select a transaction to mutate
+            let idx = rng.gen_range(0, txns.len());
+            if let Some(txn) = txns.get_mut(idx) {
+                // Serialize the selected transaction into a byte array
+                if let Ok(mut txn_bytes) = bcs::to_bytes(txn) {
+                    // If the byte array is not empty, a random byte is selected for mutation
+                    if !txn_bytes.is_empty() {
+                        let flip_idx = rng.gen_range(0, txn_bytes.len());
+                        txn_bytes[flip_idx] = !txn_bytes[flip_idx]; // Take all the bits in the inverse byte
+
+                        // Try to deserialize the mutated byte array into a transaction
+                        if let Ok(mutated_txn) = bcs::from_bytes::<SignedTransaction>(&txn_bytes) {
+                            *txn = mutated_txn;
+                        }
+                    }
+                }
+            }
+            info!("@@@@@ LOKI: mutated DirectMempool payload: {:?}", txns);
+            Payload::DirectMempool(txns.clone())
+        }
+        
+        // Most transactions executed using transaction-emitter are of the QuorumStoreInlineHybrid type
+        Payload::QuorumStoreInlineHybrid(inline_batches, proof_with_data, maybe_limit) => {
+            if inline_batches.is_empty() {
+
+                // Transaction fields are empty because LOKI nodes don't actually perform transactions, but other nodes do
+                info!("@@@@@ LOKI: inline_batches is empty, mutated proof_with_data instead.");
+
+                // If inline_batches is empty, mutate proof_with_data
+                mutate_proof_with_data_single_field(proof_with_data);
+            } else {
+                info!("@@@@@ LOKI: payload MUTATE QuorumStoreInlineHybrid!");
+                let mut rng = rand::thread_rng();
+                let batch_idx = rng.gen_range(0, inline_batches.len());
+                let (_, txns) = &mut inline_batches[batch_idx];
+        
+                if txns.is_empty() {
+                    info!("@@@@@ LOKI: in QuorumStoreInlineHybrid, txn is empty!");
+                    // If the transaction is also empty, we have the option to mutate proof_with_data
+                    mutate_proof_with_data_single_field(proof_with_data);
+                } else {
+                    let txn_idx = rng.gen_range(0, txns.len());
+                    if let Some(txn) = txns.get_mut(txn_idx) {
+                        if let Ok(mut txn_bytes) = bcs::to_bytes(txn) {
+                            if !txn_bytes.is_empty() {
+                                let flip_idx = rng.gen_range(0, txn_bytes.len());
+                                txn_bytes[flip_idx] ^= 0xFF;
+        
+                                if let Ok(mutated_txn) = bcs::from_bytes::<SignedTransaction>(&txn_bytes) {
+                                    *txn = mutated_txn;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        
+            Payload::QuorumStoreInlineHybrid(
+                inline_batches.clone(),
+                proof_with_data.clone(),
+                *maybe_limit,
+            )
+        }
+
+        // Please supplement the corresponding mutate operations for the enumerated types of other payloads
+        _ => payload,
+    }
+}
+
+fn mutate_proof_with_data_single_field(proof_with_data: &mut ProofWithData) {
+    let mut rng = rand::thread_rng();
+    if proof_with_data.proofs.is_empty() {
+        info!("@@@@@ LOKI: proof_with_data.proofs is empty!");
+        return;
+    }
+    info!("@@@@@ LOKI: Mutating proof_with_data!");
+
+    // Randomly select the ProofOfStore to mutate
+    let proof_idx = rng.gen_range(0, proof_with_data.proofs.len());
+    let proof = &mut proof_with_data.proofs[proof_idx];
+
+    info!("@@@@@ LOKI: Proof before mutation: {:?}", proof);
+
+    // Serialization
+    let mut proof_bytes = match bcs::to_bytes(proof) {
+        Ok(bytes) => bytes,
+        Err(_) => return,
+        // info!("@@@@@ LOKI: ProofOfStore");
+    };
+
+    if !proof_bytes.is_empty() {
+        let flip_idx = rng.gen_range(0, proof_bytes.len());
+        proof_bytes[flip_idx] ^= 0xFF; 
+
+        // Deserialize
+        if let Ok(mutated_proof) = bcs::from_bytes::<ProofOfStore>(&proof_bytes) {
+            info!("@@@@@ LOKI: Proof after mutation: {:?}", mutated_proof);
+            proof_with_data.proofs[proof_idx] = mutated_proof;
+        } else {
+            info!("@@@@@ LOKI: Mutation resulted in invalid ProofOfStore!");
+        }
+    }
+}
+
 
 fn generate_BlockRetrievalRequest() -> BlockRetrievalRequest{
     let block_id = HashValue::random();
@@ -342,6 +576,7 @@ pub fn mutate_vote(cur_pro: VoteMsg) -> VoteMsg{
          );
      VoteMsg::new(vote,sync_info.clone())
 }
+
 fn mutate_blockInfo(cur_info: &BlockInfo) -> BlockInfo{
     let next_epoch_state = cur_info.next_epoch_state();
     let mut epoch = cur_info.epoch();
