@@ -4,6 +4,7 @@ import subprocess
 import json
 import os
 
+successful_deploy = "The network has been deployed. Hit Ctrl+C to kill this, otherwise it will run forever."
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Run aptos-forge-cli with specific configurations.", add_help=False)
@@ -27,6 +28,10 @@ def parse_arguments():
         "-h", "--help", action="help", default=argparse.SUPPRESS,
         help="show this help message and exit"
     )
+    parser.add_argument(
+        "-c","--clear", action="store_true", default=False,
+        help="Clean up old logs (default: False)"
+    )
 
     return parser.parse_args()
 
@@ -46,6 +51,7 @@ def extract_and_save_output(output, output_file):
     """Key information is extracted from the child process output and saved as a JSON file"""
     result_data = {
         "loki_url": None,
+        "loki_id": None,
         "origin_node_url": [],
         "cluster_mint": None
     }
@@ -53,7 +59,7 @@ def extract_and_save_output(output, output_file):
     previous_line = ""
     for line in output.splitlines():
         cluster_dir_pattern = r'Building genesis with \d+ validators\. Directory of output: "(.+)"'
-        rest_api_pattern = r'Node \d+: REST API is listening at: (http://127\.0\.0\.1:\d+)'
+        rest_api_pattern = r'Node (\d+): REST API is listening at: (http://127\.0\.0\.1:\d+)'
 
         cluster_dir_match = re.search(cluster_dir_pattern, line)
         if cluster_dir_match:
@@ -61,10 +67,12 @@ def extract_and_save_output(output, output_file):
 
         rest_api_match = re.search(rest_api_pattern, line)
         if rest_api_match:
-            rest_api_url = rest_api_match.group(1)
+            node_id = rest_api_match.group(1)
+            rest_api_url = rest_api_match.group(2)
             # Check that the previous line contains node type information
             if "LOKI-for-Aptos/target/debug/aptos-node\"" in previous_line:
                 result_data["loki_url"] = rest_api_url
+                result_data["loki_id"] = node_id
             elif "LOKI-for-Aptos/target/debug/aptos-node-origin\"" in previous_line:
                 result_data["origin_node_url"].append(rest_api_url)
 
@@ -94,7 +102,7 @@ def run_command(validators, loki_node, output_file_path):
             output += line
 
             # Detects the program completion flag
-            if "The network has been deployed. Hit Ctrl+C to kill this, otherwise it will run forever." in line:
+            if successful_deploy in line:
                 print("\n@@@ Detected the completion of network deployment, start to extract log information... @@@")
                 extract_and_save_output(output, output_file_path)
                 break
@@ -109,9 +117,13 @@ def run_command(validators, loki_node, output_file_path):
 def main():
     args = parse_arguments()
     print(f"Parameters in running:\nValidators={args.validators}, Loki Node={args.loki_node}, Log Dir={args.log_dir}, Output={args.output}")
+    print(f"Clear={args.clear}")
 
-    setup_environment(args.log_dir)
-    # setup_environment_and_clear_logs(args.log_dir)
+    if args.clear:
+        setup_environment_and_clear_logs(args.log_dir)
+    else:
+        setup_environment(args.log_dir)
+
 
     run_command(args.validators, args.loki_node, args.output)
 

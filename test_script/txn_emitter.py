@@ -14,8 +14,8 @@ def parse_arguments():
         help="Set the chain id (default: 4)"
     )
     parser.add_argument(
-        "-m","--mempool-backlog", type=int, default=6000,
-        help="Set the mempool backlog (default: 6000)"
+        "-m","--mempool-backlog", type=int, default=1000,
+        help="Set the mempool backlog (default: 1000)"
     )
     parser.add_argument(
         "-d","--duration", type=int, default=240,
@@ -30,8 +30,8 @@ def parse_arguments():
         help="Set the --coordination-delay-between-instances (default: 5)"
     )
     parser.add_argument(
-        "-n","--num-accounts", type=int, default=1000,
-        help="Set the number of accounts (default: 1000)"
+        "-n","--num-accounts", type=int, default=10,
+        help="Set the number of accounts (default: 10)"
     )
     parser.add_argument(
         "-h", "--help", action="help", default=argparse.SUPPRESS,
