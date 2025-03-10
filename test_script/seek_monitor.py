@@ -56,6 +56,7 @@ def main():
     print("*********")
     print(f"Monitoring log file: {log_file_path}")
     print("*********\n")
+    time.sleep(2)
     print("@@ Start Monitor LOKI node MUTATE! @@\n")
 
     # Initialize the monitor dictionary
