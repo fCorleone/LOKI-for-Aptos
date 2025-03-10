@@ -7,7 +7,7 @@ use crate::{
     serializer::{SafetyRulesInput, SerializerClient, SerializerService, TSerializerClient},
     Error, SafetyRules, TSafetyRules,
 };
-use aptos_logger::warn;
+use aptos_logger::{info, warn};
 use aptos_secure_net::{NetworkClient, NetworkServer};
 use std::net::SocketAddr;
 
@@ -75,9 +75,18 @@ impl TSerializerClient for RemoteClient {
         let input_message = serde_json::to_vec(&input)?;
         loop {
             match self.process_one_message(&input_message) {
-                Err(err) => warn!("Failed to communicate with SafetyRules service: {}", err),
-                Ok(value) => return Ok(value),
+                Err(err) => {
+                    info!("LOKI FAIL in remote service!");
+                    warn!("Failed to communicate with SafetyRules service: {}", err);
+                }
+                Ok(value) => {
+                    // info!("LOKI in remote service, show value: {:?}", value);
+                    return Ok(value)
+                }
             }
         }
+
+        // 可以用一个默认的替换掉？最好就是 能够绕开当前的排查。
+
     }
 }
